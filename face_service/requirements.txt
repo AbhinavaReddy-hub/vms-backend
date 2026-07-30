@@ -1,0 +1,31 @@
+# Pinned deliberately. This service is the fragile one to rebuild: numpy 2.x
+# vs onnxruntime vs insightface is a well-known breakage triangle, and the
+# combination below is the one that has actually been verified working here.
+# Don't bump these casually - rebuild and hit /health plus one real /embed
+# call afterwards.
+fastapi==0.140.13
+uvicorn[standard]==0.51.0
+python-multipart==0.0.32
+
+insightface==1.0.1
+onnxruntime==1.28.0
+numpy==2.4.6
+
+# opencv-python, NOT opencv-python-headless.
+#
+# insightface declares `Requires-Dist: opencv-python`, so pip installs the GUI
+# build no matter what. Asking for headless as well got BOTH installed (they
+# were both sitting in the local venv) - and since they ship the same top-level
+# `cv2` module, which one you actually import came down to pip's install order.
+# Pinning the one insightface wants removes that coin flip and ~120MB of
+# duplicate install; the Dockerfile installs libgl1/libglib2.0-0 to satisfy it.
+opencv-python==5.0.0.93
+
+# Transitive deps of insightface, pinned for the same reproducibility reason -
+# these are the heavy, version-sensitive ones. insightface pulls them whether
+# or not they're listed; listing them just stops the versions from drifting.
+onnx==1.22.0
+scipy==1.17.1
+scikit-image==0.26.0
+tqdm==4.70.0
+requests==2.34.2

@@ -1,0 +1,134 @@
+# Production stack for a SINGLE EC2 instance (t3.micro, 1GB RAM, free tier).
+#
+# Three containers, one host: api_gateway (public), face_service (internal) and
+# db (internal). docker-compose is doing container orchestration on one machine
+# here - nothing about it implies multiple servers.
+#
+# DESIGN RULE: this file hardcodes no URL, port or credential. api_gateway takes
+# its entire configuration from .env verbatim - there is no "environment:" block
+# overriding it - so DATABASE_URL, FACE_SERVICE_URL, PUBLIC_BASE_URL,
+# FRONTEND_ORIGIN and CORS_ORIGINS are whatever .env says and nothing else.
+# To change any of them: edit .env, restart. No edit here, no image rebuild.
+#
+# The two env mechanisms are different and both are used:
+#   env_file: .env  -> injects the variables INTO the container's environment
+#   ${VAR:-default} -> substitutes into THIS FILE (needs --env-file on the CLI)
+#
+# Start:  docker compose -f docker-compose.prod.yml --env-file .env up -d --build
+# Logs:   docker compose -f docker-compose.prod.yml logs -f
+# Stop:   docker compose -f docker-compose.prod.yml down
+# Reset:  docker compose -f docker-compose.prod.yml down -v   (DESTROYS the data)
+
+services:
+  db:
+    image: ${POSTGRES_IMAGE:-postgres:16-alpine}
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    # Postgres defaults assume it owns the machine. On a 1GB box shared with an
+    # ONNX model it does not, so these are dialled down. 20 connections is far
+    # more than one uvicorn worker will ever open.
+    command: >
+      postgres
+      -c shared_buffers=32MB
+      -c max_connections=20
+      -c effective_cache_size=128MB
+      -c work_mem=2MB
+      -c maintenance_work_mem=16MB
+    volumes:
+      # All application data lives here. It survives `down`, restarts and
+      # rebuilds - but NOT `down -v`, and not instance termination. Back it up
+      # with scripts/backup-db.sh.
+      - pgdata:/var/lib/postgresql/data
+    networks:
+      - internal
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    # No "ports:" - Postgres is reachable only from the other containers, never
+    # from the internet. Nothing to brute-force because nothing can connect.
+
+  face_service:
+    build: ./face_service
+    networks:
+      - internal
+    restart: unless-stopped
+    environment:
+      # Instance-sizing tuning, not application config - onnxruntime reads these
+      # natively, no code change involved. onnxruntime allocates a memory arena
+      # PER THREAD and defaults to one thread per vCPU; on a 2-vCPU 1GB box
+      # those arenas are unaffordable, and buffalo_s is small enough that
+      # single-threaded inference is still fast at kiosk request rates.
+      # Override from .env if the instance is ever resized.
+      OMP_NUM_THREADS: ${OMP_NUM_THREADS:-1}
+      OPENBLAS_NUM_THREADS: ${OMP_NUM_THREADS:-1}
+      MKL_NUM_THREADS: ${OMP_NUM_THREADS:-1}
+    volumes:
+      # Model weights (~280MB) download on first start. This path must match
+      # ENV HOME in face_service/Dockerfile, because insightface 1.0.1 resolves
+      # its cache from ~/.insightface and offers no env-var override for it.
+      - insightface_models:/home/faceuser/.insightface
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8001/health')\""]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      # Long start_period: FaceEngine() is constructed at import time, and the
+      # very first boot also downloads the model pack. Anything shorter and
+      # Docker marks a perfectly healthy service as failed while it loads.
+      start_period: 240s
+    # Deliberately NO "ports:" mapping. This service has no route from the
+    # outside world at all - only api_gateway reaches it, over the internal
+    # Docker network. It is not password protected, it is unreachable, which is
+    # stronger. Keeping it a separate container is what makes that true.
+
+  api_gateway:
+    build: ./api_gateway
+    # The entire application configuration, straight from .env, unmodified.
+    #
+    # Because nothing here overrides it, .env on the SERVER must use the
+    # CONTAINER HOSTNAMES, not localhost:
+    #     DATABASE_URL=postgresql://<user>:<pass>@db:5432/<dbname>
+    #     FACE_SERVICE_URL=http://face_service:8001
+    # Inside this container "localhost" is api_gateway itself, so dev values
+    # copied over unchanged fail on every database and face call.
+    env_file:
+      - .env
+    ports:
+      # Host port -> container 8000. CloudFront speaks HTTP to the host port,
+      # and the security group should allow it only from CloudFront's prefix
+      # list. The container-internal 8000 is fixed by the Dockerfile CMD; the
+      # host side is what you would ever want to change.
+      - "${API_HOST_PORT:-80}:8000"
+    depends_on:
+      db:
+        # Waits for pg_isready, not just "container started" - otherwise the
+        # app's create_all/seed on startup races an unready database and the
+        # container crash-loops on first boot.
+        condition: service_healthy
+      # Intentionally NOT waiting on face_service. Its model takes minutes to
+      # load, and /health already reports face_service as "down" gracefully, so
+      # the API serves login, dashboard and every non-face endpoint meanwhile.
+    networks:
+      - internal
+      - public
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/health')\""]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+networks:
+  internal:
+    internal: false
+  public:
+
+volumes:
+  pgdata:
+  insightface_models:

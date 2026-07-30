@@ -1,0 +1,49 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: vms
+      POSTGRES_PASSWORD: vms
+      POSTGRES_DB: vms
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    networks:
+      - internal
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U vms"]
+      interval: 5s
+      retries: 10
+
+  face_service:
+    build: ./face_service
+    networks:
+      - internal
+    # NOTE: deliberately NO "ports:" mapping.
+    # This service has no route from the outside world at all. Only the
+    # api_gateway can reach it, over the internal Docker network. It is not
+    # password protected - it is unreachable, which is stronger.
+
+  api_gateway:
+    build: ./api_gateway
+    environment:
+      DATABASE_URL: postgresql+psycopg2://vms:vms@db:5432/vms
+      FACE_SERVICE_URL: http://face_service:8001
+      JWT_SECRET: ${JWT_SECRET:-change-me-in-production}
+      PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-http://localhost:5174}
+      FRONTEND_ORIGIN: ${FRONTEND_ORIGIN:-http://localhost:5173}
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - internal
+      - public
+
+networks:
+  internal:
+    internal: false
+  public:
+
+volumes:
+  pgdata:

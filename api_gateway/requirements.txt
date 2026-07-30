@@ -1,0 +1,23 @@
+# Pinned to the versions this service was actually developed and tested
+# against. Unpinned, a rebuild months from now silently pulls new majors onto
+# the server and you end up debugging version drift instead of your own code.
+# To upgrade deliberately: bump a line, rebuild, re-run smoke_test.py.
+fastapi==0.140.13
+python-dotenv==1.2.2
+uvicorn[standard]==0.51.0
+sqlalchemy==2.0.51
+
+# Postgres driver. The -binary wheel avoids needing a C toolchain in the
+# image; swap to plain psycopg2 if you'd rather build against system libpq.
+# Unused when DATABASE_URL points at SQLite, so it's safe to keep installed.
+psycopg2-binary==2.9.12
+
+# [email] pulls in email-validator, which the EmailStr fields in app/schemas
+# need. Without the extra those schemas fail at import, not at request time.
+pydantic[email]==2.13.4
+
+python-multipart==0.0.32
+PyJWT==2.13.0
+bcrypt==5.0.0
+qrcode[pil]==8.2
+httpx==0.28.1

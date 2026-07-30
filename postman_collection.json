@@ -1,0 +1,3026 @@
+{
+  "info": {
+    "name": "VMS Backend - Visitor Management System",
+    "description": "Complete API for the Visitor Management System.\n\nTHREE CALLER TYPES, three different credentials:\n  1. Staff (admin website) -> Authorization: Bearer <JWT>\n  2. Visitor (their phone) -> invite token in the URL, no login\n  3. Kiosk tablet          -> X-Device-Token header\n\nGETTING STARTED:\n  1. Run 'Auth > Login (Global Admin)' - it auto-saves the token\n  2. Run 'Kiosk > Pair device' with code 123456 - auto-saves device token\n  3. Everything else will then work.\n\nSeeded logins:\n  abhinav@company.com / Admin@12345   (Global Admin, all 43 permissions)\n  priya@company.com   / Security@123  (Security Desk)\n  suresh@company.com  / Host@12345    (Host - own visitors only)\n  meera@company.com   / Approve@123   (Approvals Admin)",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:8000"
+    },
+    {
+      "key": "access_token",
+      "value": ""
+    },
+    {
+      "key": "refresh_token",
+      "value": ""
+    },
+    {
+      "key": "device_token",
+      "value": ""
+    },
+    {
+      "key": "invite_token",
+      "value": ""
+    },
+    {
+      "key": "visitor_id",
+      "value": "1"
+    },
+    {
+      "key": "invite_id",
+      "value": "1"
+    },
+    {
+      "key": "approval_id",
+      "value": "1"
+    },
+    {
+      "key": "visit_id",
+      "value": "1"
+    }
+  ],
+  "item": [
+    {
+      "name": "0. Health",
+      "item": [
+        {
+          "name": "Health check",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/health",
+              "host": [
+                "{{base_url}}/health"
+              ]
+            },
+            "description": "Shows whether the DB and the face service are reachable."
+          }
+        },
+        {
+          "name": "API docs (open in browser)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/docs",
+              "host": [
+                "{{base_url}}/docs"
+              ]
+            },
+            "description": "FastAPI auto-generated interactive docs."
+          }
+        }
+      ]
+    },
+    {
+      "name": "1. Auth",
+      "item": [
+        {
+          "name": "Login (Global Admin)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/auth/login",
+              "host": [
+                "{{base_url}}/api/v1/auth/login"
+              ]
+            },
+            "description": "Saves access_token and refresh_token automatically.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"abhinav@company.com\",\n  \"password\": \"Admin@12345\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const d = pm.response.json();",
+                  "pm.collectionVariables.set('access_token', d.access_token);",
+                  "pm.collectionVariables.set('refresh_token', d.refresh_token);",
+                  "pm.test('logged in', function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Login (Security Desk)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/auth/login",
+              "host": [
+                "{{base_url}}/api/v1/auth/login"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"priya@company.com\",\n  \"password\": \"Security@123\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Login (Host - limited role)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/auth/login",
+              "host": [
+                "{{base_url}}/api/v1/auth/login"
+              ]
+            },
+            "description": "Use this to prove permissions work: this user gets 403 on admin routes.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"suresh@company.com\",\n  \"password\": \"Host@12345\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Login (wrong password)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/auth/login",
+              "host": [
+                "{{base_url}}/api/v1/auth/login"
+              ]
+            },
+            "description": "Generic 'Invalid email or password' - never reveals whether the email exists.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"abhinav@company.com\",\n  \"password\": \"wrong\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Who am I (+ my permissions)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/auth/me",
+              "host": [
+                "{{base_url}}/api/v1/auth/me"
+              ]
+            },
+            "description": "Returns the exact permission list the frontend uses to show or hide nav items."
+          }
+        },
+        {
+          "name": "Refresh access token",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/auth/refresh",
+              "host": [
+                "{{base_url}}/api/v1/auth/refresh"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refresh_token\": \"{{refresh_token}}\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Logout",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/auth/logout",
+              "host": [
+                "{{base_url}}/api/v1/auth/logout"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refresh_token\": \"{{refresh_token}}\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Logout everywhere",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/auth/logout-everywhere",
+              "host": [
+                "{{base_url}}/api/v1/auth/logout-everywhere"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{}"
+            }
+          }
+        },
+        {
+          "name": "Accept admin invitation",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/auth/accept-admin-invite",
+              "host": [
+                "{{base_url}}/api/v1/auth/accept-admin-invite"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"token\": \"PASTE_TOKEN_FROM_ADMIN_INVITATION\",\n  \"password\": \"NewAdmin@123\"\n}"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. Dashboard (Home page)",
+      "item": [
+        {
+          "name": "Summary (cards + capacity)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/dashboard/summary",
+              "host": [
+                "{{base_url}}/api/v1/dashboard/summary"
+              ]
+            },
+            "description": "Powers 'currently on site', 'expected later today', and the LOW CAPACITY badge."
+          }
+        },
+        {
+          "name": "Who is inside right now",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/dashboard/on-site",
+              "host": [
+                "{{base_url}}/api/v1/dashboard/on-site"
+              ]
+            },
+            "description": "The live board: host, badge number, time inside, stepped-out status."
+          }
+        },
+        {
+          "name": "EVACUATION LIST",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/dashboard/evacuation-list",
+              "host": [
+                "{{base_url}}/api/v1/dashboard/evacuation-list"
+              ]
+            },
+            "description": "Everyone in the building grouped by host. For a fire drill."
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. Invites",
+      "item": [
+        {
+          "name": "List invites",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/invites?page=1&page_size=25&sort_by=due_at&sort_dir=asc",
+              "host": [
+                "{{base_url}}/api/v1/invites"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "page_size",
+                  "value": "25"
+                },
+                {
+                  "key": "sort_by",
+                  "value": "due_at"
+                },
+                {
+                  "key": "sort_dir",
+                  "value": "asc"
+                }
+              ]
+            },
+            "description": "Powers the Invites table: is_returning_visitor, legal_docs_status, signed_in_at."
+          }
+        },
+        {
+          "name": "List invites - filter by date",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/invites?date=2026-07-29",
+              "host": [
+                "{{base_url}}/api/v1/invites"
+              ],
+              "query": [
+                {
+                  "key": "date",
+                  "value": "2026-07-29"
+                }
+              ]
+            },
+            "description": ""
+          }
+        },
+        {
+          "name": "List invites - search",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/invites?q=Rahul",
+              "host": [
+                "{{base_url}}/api/v1/invites"
+              ],
+              "query": [
+                {
+                  "key": "q",
+                  "value": "Rahul"
+                }
+              ]
+            },
+            "description": ""
+          }
+        },
+        {
+          "name": "Create invite (single)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/invites",
+              "host": [
+                "{{base_url}}/api/v1/invites"
+              ]
+            },
+            "description": "Saves invite_token automatically (parsed from registration_link).",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"visitor_type_id\": 1,\n  \"full_name\": \"Rahul Mehta\",\n  \"email\": \"rahul.mehta@example.com\",\n  \"phone\": \"+919876543210\",\n  \"company\": \"Acme Corp\",\n  \"additional_visitors\": 0,\n  \"arrival_at\": \"2026-07-29T11:00:00Z\",\n  \"purpose\": \"Product demo\",\n  \"primary_host_id\": 3,\n  \"additional_host_ids\": [\n    4\n  ],\n  \"private_notes\": \"Staff-only note - never shown to the visitor\",\n  \"public_notes\": \"Please bring photo ID\",\n  \"custom_message\": \"Looking forward to meeting you!\",\n  \"auto_approve\": false,\n  \"send_invite_email\": true\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const d = pm.response.json();",
+                  "if (d.registration_link) {",
+                  "  pm.collectionVariables.set('invite_token', d.registration_link.split('/').pop());",
+                  "}",
+                  "pm.test('invite created', function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create invite (VIP - auto approve)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/invites",
+              "host": [
+                "{{base_url}}/api/v1/invites"
+              ]
+            },
+            "description": "VIP skips the approval queue entirely.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"visitor_type_id\": 4,\n  \"full_name\": \"Nandini VIP\",\n  \"email\": \"nandini@example.com\",\n  \"arrival_at\": \"2026-07-29T15:00:00Z\",\n  \"primary_host_id\": 3,\n  \"auto_approve\": true,\n  \"send_invite_email\": false\n}"
+            }
+          }
+        },
+        {
+          "name": "Create GROUP invite (bulk)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/invites/bulk",
+              "host": [
+                "{{base_url}}/api/v1/invites/bulk"
+              ]
+            },
+            "description": "One action, SEPARATE token per person. Bad rows fail individually.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"group_name\": \"Campus Hiring Drive\",\n  \"visitor_type_id\": 2,\n  \"default_host_id\": 4,\n  \"auto_approve\": false,\n  \"send_invite_emails\": true,\n  \"include_group_name_in_email\": true,\n  \"rows\": [\n    {\n      \"arrival_at\": \"2026-07-29T09:00:00Z\",\n      \"full_name\": \"Ananya Rao\",\n      \"email\": \"ananya@example.com\"\n    },\n    {\n      \"arrival_at\": \"2026-07-29T09:00:00Z\",\n      \"full_name\": \"Karthik S\",\n      \"email\": \"karthik@example.com\"\n    },\n    {\n      \"arrival_at\": \"2026-07-29T09:00:00Z\",\n      \"full_name\": \"Dup Test\",\n      \"email\": \"ananya@example.com\"\n    },\n    {\n      \"arrival_at\": \"2026-07-29T09:00:00Z\",\n      \"full_name\": \"Bad Host\",\n      \"host_id\": 9999\n    }\n  ]\n}"
+            }
+          }
+        },
+        {
+          "name": "Get one invite",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/invites/{{invite_id}}",
+              "host": [
+                "{{base_url}}/api/v1/invites/{{invite_id}}"
+              ]
+            },
+            "description": ""
+          }
+        },
+        {
+          "name": "Blocklist check (Edit Invite panel)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/invites/{{invite_id}}/blocklist-check",
+              "host": [
+                "{{base_url}}/api/v1/invites/{{invite_id}}/blocklist-check"
+              ]
+            },
+            "description": ""
+          }
+        },
+        {
+          "name": "Notification status",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/invites/{{invite_id}}/notifications",
+              "host": [
+                "{{base_url}}/api/v1/invites/{{invite_id}}/notifications"
+              ]
+            },
+            "description": ""
+          }
+        },
+        {
+          "name": "Update invite",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/invites/{{invite_id}}",
+              "host": [
+                "{{base_url}}/api/v1/invites/{{invite_id}}"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"purpose\": \"Updated purpose\",\n  \"private_notes\": \"Changed note\",\n  \"additional_host_ids\": [\n    4\n  ]\n}"
+            }
+          }
+        },
+        {
+          "name": "Resend invite",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/invites/{{invite_id}}/resend",
+              "host": [
+                "{{base_url}}/api/v1/invites/{{invite_id}}/resend"
+              ]
+            },
+            "description": "Generates a NEW token - the old link stops working.",
+            "body": {
+              "mode": "raw",
+              "raw": "{}"
+            }
+          }
+        },
+        {
+          "name": "Revoke invite",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/invites/{{invite_id}}/revoke",
+              "host": [
+                "{{base_url}}/api/v1/invites/{{invite_id}}/revoke"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{}"
+            }
+          }
+        },
+        {
+          "name": "Delete invite",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/invites/{{invite_id}}",
+              "host": [
+                "{{base_url}}/api/v1/invites/{{invite_id}}"
+              ]
+            },
+            "description": ""
+          }
+        },
+        {
+          "name": "Bulk action",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/invites/bulk-action",
+              "host": [
+                "{{base_url}}/api/v1/invites/bulk-action"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"invite_ids\": [\n    1,\n    2\n  ],\n  \"action\": \"revoke\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Export invites (CSV)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/invites/export",
+              "host": [
+                "{{base_url}}/api/v1/invites/export"
+              ]
+            },
+            "description": ""
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. Public - VISITOR (no login)",
+      "item": [
+        {
+          "name": "Open my invite link",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/public/invite/{{invite_token}}",
+              "host": [
+                "{{base_url}}/api/v1/public/invite/{{invite_token}}"
+              ]
+            },
+            "description": "What the visitor sees. private_notes are NEVER returned here."
+          }
+        },
+        {
+          "name": "Get consent text",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/public/consent-text",
+              "host": [
+                "{{base_url}}/api/v1/public/consent-text"
+              ]
+            },
+            "description": ""
+          }
+        },
+        {
+          "name": "Send OTP",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/public/invite/{{invite_token}}/otp/send",
+              "host": [
+                "{{base_url}}/api/v1/public/invite/{{invite_token}}/otp/send"
+              ]
+            },
+            "description": "In dev mode the response includes dev_code so you can test without Twilio.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"phone\": \"+919876543210\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Verify OTP",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/public/invite/{{invite_token}}/otp/verify",
+              "host": [
+                "{{base_url}}/api/v1/public/invite/{{invite_token}}/otp/verify"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"phone\": \"+919876543210\",\n  \"code\": \"123456\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Give consent",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/public/invite/{{invite_token}}/consent",
+              "host": [
+                "{{base_url}}/api/v1/public/invite/{{invite_token}}/consent"
+              ]
+            },
+            "description": "Must happen BEFORE face capture. Set accepted=false to test the opt-out path.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"accepted\": true\n}"
+            }
+          }
+        },
+        {
+          "name": "Register face",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/public/invite/{{invite_token}}/face",
+              "host": [
+                "{{base_url}}/api/v1/public/invite/{{invite_token}}/face"
+              ]
+            },
+            "description": "Raw base64 or a data URL. Blocked if consent was not given.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"image_b64\": \"PASTE_BASE64_JPEG_HERE\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Submit registration",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/public/invite/{{invite_token}}/submit",
+              "host": [
+                "{{base_url}}/api/v1/public/invite/{{invite_token}}/submit"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"rahul.mehta@example.com\",\n  \"company\": \"Acme Corp\",\n  \"purpose\": \"Product demo\",\n  \"additional_visitors\": 0\n}"
+            }
+          }
+        },
+        {
+          "name": "View my pass",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/public/pass/{{invite_token}}",
+              "host": [
+                "{{base_url}}/api/v1/public/pass/{{invite_token}}"
+              ]
+            },
+            "description": ""
+          }
+        },
+        {
+          "name": "My pass QR code",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/public/pass/{{invite_token}}/qr",
+              "host": [
+                "{{base_url}}/api/v1/public/pass/{{invite_token}}/qr"
+              ]
+            },
+            "description": ""
+          }
+        }
+      ]
+    },
+    {
+      "name": "5. Kiosk - TABLET (device token)",
+      "item": [
+        {
+          "name": "Pair device (code 123456)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/kiosk/pair",
+              "host": [
+                "{{base_url}}/api/v1/kiosk/pair"
+              ]
+            },
+            "description": "One-time code. Saves device_token automatically. Code cannot be reused.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"pairing_code\": \"123456\",\n  \"app_version\": \"1.0.0\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const d = pm.response.json();",
+                  "pm.collectionVariables.set('device_token', d.device_token);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Kiosk config",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Device-Token",
+                "value": "{{device_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/kiosk/config",
+              "host": [
+                "{{base_url}}/api/v1/kiosk/config"
+              ]
+            },
+            "description": ""
+          }
+        },
+        {
+          "name": "Heartbeat",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Device-Token",
+                "value": "{{device_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/kiosk/heartbeat",
+              "host": [
+                "{{base_url}}/api/v1/kiosk/heartbeat"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"app_version\": \"1.0.0\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Search hosts (walk-in form)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Device-Token",
+                "value": "{{device_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/kiosk/hosts?q=Sur",
+              "host": [
+                "{{base_url}}/api/v1/kiosk/hosts"
+              ],
+              "query": [
+                {
+                  "key": "q",
+                  "value": "Sur"
+                }
+              ]
+            },
+            "description": "Returns only name and department - no emails, no roles."
+          }
+        },
+        {
+          "name": "IDENTIFY (face)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Device-Token",
+                "value": "{{device_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/kiosk/identify",
+              "host": [
+                "{{base_url}}/api/v1/kiosk/identify"
+              ]
+            },
+            "description": "The one endpoint the tablet uses for everything. Returns suggested_action so the kiosk never has to ask 'are you going out or coming in?'",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"image_b64\": \"PASTE_BASE64_JPEG_HERE\"\n}"
+            }
+          }
+        },
+        {
+          "name": "IDENTIFY (QR token)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Device-Token",
+                "value": "{{device_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/kiosk/identify",
+              "host": [
+                "{{base_url}}/api/v1/kiosk/identify"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"qr_token\": \"{{invite_token}}\"\n}"
+            }
+          }
+        },
+        {
+          "name": "CHECK IN (by invite)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Device-Token",
+                "value": "{{device_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/kiosk/checkin",
+              "host": [
+                "{{base_url}}/api/v1/kiosk/checkin"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"invite_token\": \"{{invite_token}}\",\n  \"method\": \"qr\"\n}"
+            }
+          }
+        },
+        {
+          "name": "CHECK IN (by recognised face)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Device-Token",
+                "value": "{{device_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/kiosk/checkin",
+              "host": [
+                "{{base_url}}/api/v1/kiosk/checkin"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"visitor_id\": 1,\n  \"host_id\": 3,\n  \"method\": \"face\",\n  \"match_score\": 0.81\n}"
+            }
+          }
+        },
+        {
+          "name": "STEP OUT (cafeteria/lunch)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Device-Token",
+                "value": "{{device_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/kiosk/step-out",
+              "host": [
+                "{{base_url}}/api/v1/kiosk/step-out"
+              ]
+            },
+            "description": "Visit stays OPEN, pass stays valid, host is deliberately NOT notified.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"visitor_id\": \"{{visitor_id}}\",\n  \"method\": \"face\",\n  \"match_score\": 0.81\n}"
+            }
+          }
+        },
+        {
+          "name": "STEP IN (back from cafeteria)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Device-Token",
+                "value": "{{device_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/kiosk/step-in",
+              "host": [
+                "{{base_url}}/api/v1/kiosk/step-in"
+              ]
+            },
+            "description": "No form, no OTP, no approval. Flags confirm_still_visiting if away over 2 hours.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"visitor_id\": \"{{visitor_id}}\",\n  \"method\": \"face\",\n  \"match_score\": 0.79\n}"
+            }
+          }
+        },
+        {
+          "name": "CHECK OUT (leaving for the day)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Device-Token",
+                "value": "{{device_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/kiosk/checkout",
+              "host": [
+                "{{base_url}}/api/v1/kiosk/checkout"
+              ]
+            },
+            "description": "Different action from step-out. This closes the visit for good.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"visitor_id\": \"{{visitor_id}}\",\n  \"method\": \"face\",\n  \"match_score\": 0.77\n}"
+            }
+          }
+        },
+        {
+          "name": "Walk-in: send OTP",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Device-Token",
+                "value": "{{device_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/kiosk/walkin/otp/send",
+              "host": [
+                "{{base_url}}/api/v1/kiosk/walkin/otp/send"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"phone\": \"+919000011111\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Walk-in: verify OTP",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Device-Token",
+                "value": "{{device_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/kiosk/walkin/otp/verify",
+              "host": [
+                "{{base_url}}/api/v1/kiosk/walkin/otp/verify"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"phone\": \"+919000011111\",\n  \"code\": \"123456\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Walk-in: submit",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Device-Token",
+                "value": "{{device_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/kiosk/walkin/submit",
+              "host": [
+                "{{base_url}}/api/v1/kiosk/walkin/submit"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"full_name\": \"Vikram Singh\",\n  \"phone\": \"+919000011111\",\n  \"email\": \"vikram@example.com\",\n  \"company\": \"Delta Ltd\",\n  \"purpose\": \"Sales meeting\",\n  \"host_id\": 3,\n  \"visitor_type_id\": 1,\n  \"consent_given\": true,\n  \"image_b64\": null\n}"
+            }
+          }
+        },
+        {
+          "name": "Walk-in: waiting screen status",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Device-Token",
+                "value": "{{device_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/kiosk/walkin/{{approval_id}}/status",
+              "host": [
+                "{{base_url}}/api/v1/kiosk/walkin/{{approval_id}}/status"
+              ]
+            },
+            "description": "The kiosk polls this. Countdown, and a NEUTRAL message if denied."
+          }
+        }
+      ]
+    },
+    {
+      "name": "6. Approvals",
+      "item": [
+        {
+          "name": "List pending approvals",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/approvals?status=pending",
+              "host": [
+                "{{base_url}}/api/v1/approvals"
+              ],
+              "query": [
+                {
+                  "key": "status",
+                  "value": "pending"
+                }
+              ]
+            },
+            "description": "A host without approval permissions only sees their own queue."
+          }
+        },
+        {
+          "name": "List all approvals",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/approvals?status=all",
+              "host": [
+                "{{base_url}}/api/v1/approvals"
+              ],
+              "query": [
+                {
+                  "key": "status",
+                  "value": "all"
+                }
+              ]
+            },
+            "description": ""
+          }
+        },
+        {
+          "name": "Get one approval",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/approvals/{{approval_id}}",
+              "host": [
+                "{{base_url}}/api/v1/approvals/{{approval_id}}"
+              ]
+            },
+            "description": ""
+          }
+        },
+        {
+          "name": "Match details (why flagged)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/approvals/{{approval_id}}/match-details",
+              "host": [
+                "{{base_url}}/api/v1/approvals/{{approval_id}}/match-details"
+              ]
+            },
+            "description": "Gated behind its own permission - it exposes blocklist reasons."
+          }
+        },
+        {
+          "name": "APPROVE",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/approvals/{{approval_id}}/approve",
+              "host": [
+                "{{base_url}}/api/v1/approvals/{{approval_id}}/approve"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{}"
+            }
+          }
+        },
+        {
+          "name": "DENY",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/approvals/{{approval_id}}/deny",
+              "host": [
+                "{{base_url}}/api/v1/approvals/{{approval_id}}/deny"
+              ]
+            },
+            "description": "The reason is internal. The visitor only sees 'Please speak to reception'.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reason\": \"Not expected today\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Bulk decide",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/approvals/bulk-decide",
+              "host": [
+                "{{base_url}}/api/v1/approvals/bulk-decide"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"approval_ids\": [\n    1,\n    2\n  ],\n  \"approve\": true\n}"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "7. Visitors & Visits",
+      "item": [
+        {
+          "name": "List visitors",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/visitors?page=1&q=",
+              "host": [
+                "{{base_url}}/api/v1/visitors"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "q",
+                  "value": ""
+                }
+              ]
+            },
+            "description": ""
+          }
+        },
+        {
+          "name": "Visitor profile",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/visitors/{{visitor_id}}",
+              "host": [
+                "{{base_url}}/api/v1/visitors/{{visitor_id}}"
+              ]
+            },
+            "description": ""
+          }
+        },
+        {
+          "name": "Visitor FULL history (all movements)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/visitors/{{visitor_id}}/visits",
+              "host": [
+                "{{base_url}}/api/v1/visitors/{{visitor_id}}/visits"
+              ]
+            },
+            "description": "Every visit, and every entry/step-out/step-in/exit inside each one."
+          }
+        },
+        {
+          "name": "Update visitor",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/visitors/{{visitor_id}}",
+              "host": [
+                "{{base_url}}/api/v1/visitors/{{visitor_id}}"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"notes\": \"Regular vendor contact\"\n}"
+            }
+          }
+        },
+        {
+          "name": "DELETE FACE DATA (privacy)",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/visitors/{{visitor_id}}/face-data",
+              "host": [
+                "{{base_url}}/api/v1/visitors/{{visitor_id}}/face-data"
+              ]
+            },
+            "description": "Removes biometric data without touching visit history."
+          }
+        },
+        {
+          "name": "Export this person's data (DSAR)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/visitors/{{visitor_id}}/export",
+              "host": [
+                "{{base_url}}/api/v1/visitors/{{visitor_id}}/export"
+              ]
+            },
+            "description": ""
+          }
+        },
+        {
+          "name": "Block this visitor",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/visitors/{{visitor_id}}/block",
+              "host": [
+                "{{base_url}}/api/v1/visitors/{{visitor_id}}/block"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reason\": \"Security incident\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Delete visitor (soft)",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/visitors/{{visitor_id}}",
+              "host": [
+                "{{base_url}}/api/v1/visitors/{{visitor_id}}"
+              ]
+            },
+            "description": ""
+          }
+        },
+        {
+          "name": "List visits",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/visits?page=1&status=open",
+              "host": [
+                "{{base_url}}/api/v1/visits"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "status",
+                  "value": "open"
+                }
+              ]
+            },
+            "description": ""
+          }
+        },
+        {
+          "name": "Visit detail (with movements)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/visits/{{visit_id}}",
+              "host": [
+                "{{base_url}}/api/v1/visits/{{visit_id}}"
+              ]
+            },
+            "description": ""
+          }
+        },
+        {
+          "name": "Force close a visit",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/visits/{{visit_id}}/force-close",
+              "host": [
+                "{{base_url}}/api/v1/visits/{{visit_id}}/force-close"
+              ]
+            },
+            "description": "Someone forgot to scan out. Recorded as manual, not a fake face scan.",
+            "body": {
+              "mode": "raw",
+              "raw": "{}"
+            }
+          }
+        },
+        {
+          "name": "Correct a movement",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/visits/{{visit_id}}/correct",
+              "host": [
+                "{{base_url}}/api/v1/visits/{{visit_id}}/correct"
+              ]
+            },
+            "description": "Creates a NEW row. The original is never overwritten.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"type\": \"exit\",\n  \"occurred_at\": \"2026-07-28T18:00:00\",\n  \"note\": \"Visitor left at 6pm\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Export visits (CSV)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/visits/export",
+              "host": [
+                "{{base_url}}/api/v1/visits/export"
+              ]
+            },
+            "description": ""
+          }
+        }
+      ]
+    },
+    {
+      "name": "8. Blocklist",
+      "item": [
+        {
+          "name": "List blocklist",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/blocklist",
+              "host": [
+                "{{base_url}}/api/v1/blocklist"
+              ]
+            },
+            "description": ""
+          }
+        },
+        {
+          "name": "Add entry",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/blocklist",
+              "host": [
+                "{{base_url}}/api/v1/blocklist"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"full_name\": \"Mallory Blocked\",\n  \"email\": \"mallory@example.com\",\n  \"phone\": \"+919555000111\",\n  \"reason\": \"Previous security incident\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Check someone",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/blocklist/check",
+              "host": [
+                "{{base_url}}/api/v1/blocklist/check"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"full_name\": \"Mallory Blocked\",\n  \"email\": \"mallory@example.com\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Remove entry",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/blocklist/1",
+              "host": [
+                "{{base_url}}/api/v1/blocklist/1"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reason\": \"Cleared by security\"\n}"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "9. Employees, Admins & Roles",
+      "item": [
+        {
+          "name": "List employees",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/employees?page=1",
+              "host": [
+                "{{base_url}}/api/v1/employees"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                }
+              ]
+            },
+            "description": ""
+          }
+        },
+        {
+          "name": "Search employees (host picker)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/employees/search?q=Sur",
+              "host": [
+                "{{base_url}}/api/v1/employees/search"
+              ],
+              "query": [
+                {
+                  "key": "q",
+                  "value": "Sur"
+                }
+              ]
+            },
+            "description": ""
+          }
+        },
+        {
+          "name": "Create employee",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/employees",
+              "host": [
+                "{{base_url}}/api/v1/employees"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"full_name\": \"New Person\",\n  \"work_email\": \"new@company.com\",\n  \"department\": \"Finance\",\n  \"floor\": \"3\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Update employee",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/employees/1",
+              "host": [
+                "{{base_url}}/api/v1/employees/1"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"department\": \"Platform\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Deactivate employee",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/employees/5",
+              "host": [
+                "{{base_url}}/api/v1/employees/5"
+              ]
+            },
+            "description": "Deactivates, never hard-deletes - their past visits must stay intact."
+          }
+        },
+        {
+          "name": "Bulk import employees",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/employees/import",
+              "host": [
+                "{{base_url}}/api/v1/employees/import"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"rows\": [\n    {\n      \"full_name\": \"Import One\",\n      \"work_email\": \"i1@company.com\",\n      \"department\": \"Ops\"\n    },\n    {\n      \"full_name\": \"Import Two\",\n      \"work_email\": \"i2@company.com\"\n    }\n  ]\n}"
+            }
+          }
+        },
+        {
+          "name": "My schedule",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/me/schedule?date=2026-07-29",
+              "host": [
+                "{{base_url}}/api/v1/me/schedule"
+              ],
+              "query": [
+                {
+                  "key": "date",
+                  "value": "2026-07-29"
+                }
+              ]
+            },
+            "description": ""
+          }
+        },
+        {
+          "name": "My notification preferences",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/me/notification-preferences",
+              "host": [
+                "{{base_url}}/api/v1/me/notification-preferences"
+              ]
+            },
+            "description": ""
+          }
+        },
+        {
+          "name": "Set notification preferences",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/me/notification-preferences",
+              "host": [
+                "{{base_url}}/api/v1/me/notification-preferences"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"notify_email\": true,\n  \"notify_teams\": true,\n  \"teams_webhook_url\": \"https://outlook.office.com/webhook/YOUR_URL\"\n}"
+            }
+          }
+        },
+        {
+          "name": "List admins",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/admins",
+              "host": [
+                "{{base_url}}/api/v1/admins"
+              ]
+            },
+            "description": "Shows '(You)' next to the logged-in user."
+          }
+        },
+        {
+          "name": "INVITE a new admin",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/admin-invitations",
+              "host": [
+                "{{base_url}}/api/v1/admin-invitations"
+              ]
+            },
+            "description": "Two-step New admin modal. Emails an 'Accept invite' link.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"employee_id\": 5,\n  \"role_id\": 7\n}"
+            }
+          }
+        },
+        {
+          "name": "Change admin role",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/admins/5",
+              "host": [
+                "{{base_url}}/api/v1/admins/5"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"role_id\": 2\n}"
+            }
+          }
+        },
+        {
+          "name": "Remove admin access",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/admins/5",
+              "host": [
+                "{{base_url}}/api/v1/admins/5"
+              ]
+            },
+            "description": "Also logs that person out everywhere. You cannot remove your own access."
+          }
+        },
+        {
+          "name": "PERMISSION CATALOG",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/permissions",
+              "host": [
+                "{{base_url}}/api/v1/permissions"
+              ]
+            },
+            "description": "All 43 permissions grouped by module and sub-category. The Roles screen renders its checkboxes from this."
+          }
+        },
+        {
+          "name": "List roles",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/roles",
+              "host": [
+                "{{base_url}}/api/v1/roles"
+              ]
+            },
+            "description": ""
+          }
+        },
+        {
+          "name": "Create custom role",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/roles",
+              "host": [
+                "{{base_url}}/api/v1/roles"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Reception Only\",\n  \"description\": \"Can see visitors and approve, nothing else\",\n  \"permissions\": [\n    \"visitors.entries.view_all\",\n    \"visitors.entries.add\",\n    \"blocklist.view\",\n    \"approvals.decide_invites\"\n  ]\n}"
+            }
+          }
+        },
+        {
+          "name": "Get role",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/roles/7",
+              "host": [
+                "{{base_url}}/api/v1/roles/7"
+              ]
+            },
+            "description": ""
+          }
+        },
+        {
+          "name": "Update role",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/roles/7",
+              "host": [
+                "{{base_url}}/api/v1/roles/7"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Reception Only\",\n  \"description\": \"Updated\",\n  \"permissions\": [\n    \"visitors.entries.view_all\",\n    \"approvals.decide_invites\"\n  ]\n}"
+            }
+          }
+        },
+        {
+          "name": "Delete role",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/roles/7",
+              "host": [
+                "{{base_url}}/api/v1/roles/7"
+              ]
+            },
+            "description": "System roles cannot be deleted."
+          }
+        }
+      ]
+    },
+    {
+      "name": "10. Devices, Settings, Analytics, Audit",
+      "item": [
+        {
+          "name": "List devices",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/devices",
+              "host": [
+                "{{base_url}}/api/v1/devices"
+              ]
+            },
+            "description": "online = seen in the last 5 minutes. needs_attention drives the orange nav dot."
+          }
+        },
+        {
+          "name": "Create device (get pairing code)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/devices",
+              "host": [
+                "{{base_url}}/api/v1/devices"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Reception Tablet 2\",\n  \"location_label\": \"Side entrance\",\n  \"mode\": \"both\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Update device",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/devices/1",
+              "host": [
+                "{{base_url}}/api/v1/devices/1"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"mode\": \"checkin\",\n  \"location_label\": \"Main lobby\"\n}"
+            }
+          }
+        },
+        {
+          "name": "REVOKE device (lost tablet)",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/devices/1",
+              "host": [
+                "{{base_url}}/api/v1/devices/1"
+              ]
+            },
+            "description": "Instantly kills that tablet's access."
+          }
+        },
+        {
+          "name": "List visitor types",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/visitor-types",
+              "host": [
+                "{{base_url}}/api/v1/visitor-types"
+              ]
+            },
+            "description": ""
+          }
+        },
+        {
+          "name": "Create visitor type",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/visitor-types",
+              "host": [
+                "{{base_url}}/api/v1/visitor-types"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Contractor\",\n  \"badge_color\": \"#7C3AED\",\n  \"requires_approval\": true,\n  \"requires_face\": true,\n  \"requires_legal_docs\": true,\n  \"auto_approve_default\": false,\n  \"default_validity_hours\": 48\n}"
+            }
+          }
+        },
+        {
+          "name": "Update visitor type",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/visitor-types/1",
+              "host": [
+                "{{base_url}}/api/v1/visitor-types/1"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"badge_color\": \"#0EA5E9\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Get all settings",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/settings",
+              "host": [
+                "{{base_url}}/api/v1/settings"
+              ]
+            },
+            "description": ""
+          }
+        },
+        {
+          "name": "Change face threshold",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/settings",
+              "host": [
+                "{{base_url}}/api/v1/settings"
+              ]
+            },
+            "description": "The one number worth tuning with real faces before your demo.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"face.match_threshold\": 0.75\n}"
+            }
+          }
+        },
+        {
+          "name": "Change privacy settings",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/settings",
+              "host": [
+                "{{base_url}}/api/v1/settings"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"privacy.face_retention_days\": 14,\n  \"privacy.store_photos\": false,\n  \"privacy.consent_text\": \"We use your photo only to verify you during this visit.\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Analytics overview",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/analytics/overview?days=30",
+              "host": [
+                "{{base_url}}/api/v1/analytics/overview"
+              ],
+              "query": [
+                {
+                  "key": "days",
+                  "value": "30"
+                }
+              ]
+            },
+            "description": ""
+          }
+        },
+        {
+          "name": "Face model performance",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/analytics/face-performance?days=30",
+              "host": [
+                "{{base_url}}/api/v1/analytics/face-performance"
+              ],
+              "query": [
+                {
+                  "key": "days",
+                  "value": "30"
+                }
+              ]
+            },
+            "description": "Match rate, average score, how often the OTP fallback was needed."
+          }
+        },
+        {
+          "name": "AUDIT LOG",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/audit-log?page=1&page_size=50",
+              "host": [
+                "{{base_url}}/api/v1/audit-log"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "page_size",
+                  "value": "50"
+                }
+              ]
+            },
+            "description": "Append-only. There is deliberately no PATCH or DELETE endpoint here."
+          }
+        },
+        {
+          "name": "Audit log - filter by action",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/audit-log?action=auth.login",
+              "host": [
+                "{{base_url}}/api/v1/audit-log"
+              ],
+              "query": [
+                {
+                  "key": "action",
+                  "value": "auth.login"
+                }
+              ]
+            },
+            "description": ""
+          }
+        },
+        {
+          "name": "My notifications",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/notifications",
+              "host": [
+                "{{base_url}}/api/v1/notifications"
+              ]
+            },
+            "description": ""
+          }
+        },
+        {
+          "name": "Mark notification read",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/notifications/1/read",
+              "host": [
+                "{{base_url}}/api/v1/notifications/1/read"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{}"
+            }
+          }
+        },
+        {
+          "name": "Mark all read",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/notifications/read-all",
+              "host": [
+                "{{base_url}}/api/v1/notifications/read-all"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{}"
+            }
+          }
+        },
+        {
+          "name": "Run maintenance jobs now",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/jobs/run",
+              "host": [
+                "{{base_url}}/api/v1/jobs/run"
+              ]
+            },
+            "description": "Expire invites, auto-close stale visits, escalate approvals, purge old face data.",
+            "body": {
+              "mode": "raw",
+              "raw": "{}"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "11. SECURITY TESTS (should all fail)",
+      "item": [
+        {
+          "name": "No token -> 401",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/admins",
+              "host": [
+                "{{base_url}}/api/v1/admins"
+              ]
+            },
+            "description": ""
+          }
+        },
+        {
+          "name": "Host token on admin route -> 403",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/admins",
+              "host": [
+                "{{base_url}}/api/v1/admins"
+              ]
+            },
+            "description": "Log in as suresh@company.com first, then run this. Proves permissions are enforced on the backend, not just hidden in the UI."
+          }
+        },
+        {
+          "name": "Device token on admin route -> 401",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Device-Token",
+                "value": "{{device_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/admins",
+              "host": [
+                "{{base_url}}/api/v1/admins"
+              ]
+            },
+            "description": "A kiosk token can NEVER reach an admin endpoint."
+          }
+        },
+        {
+          "name": "Admin JWT on kiosk route -> 401",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/kiosk/config",
+              "host": [
+                "{{base_url}}/api/v1/kiosk/config"
+              ]
+            },
+            "description": "And an admin token cannot act as a kiosk either."
+          }
+        },
+        {
+          "name": "Reuse a pairing code -> 400",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/kiosk/pair",
+              "host": [
+                "{{base_url}}/api/v1/kiosk/pair"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"pairing_code\": \"123456\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Unknown permission key -> 400",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/roles",
+              "host": [
+                "{{base_url}}/api/v1/roles"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Bad Role\",\n  \"permissions\": [\n    \"invites.take_over_the_world\"\n  ]\n}"
+            }
+          }
+        },
+        {
+          "name": "Delete a system role -> 400",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/roles/1",
+              "host": [
+                "{{base_url}}/api/v1/roles/1"
+              ]
+            },
+            "description": ""
+          }
+        },
+        {
+          "name": "Unknown setting key -> 400",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/settings",
+              "host": [
+                "{{base_url}}/api/v1/settings"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"face.made_up\": 1\n}"
+            }
+          }
+        },
+        {
+          "name": "Invalid invite token -> 400",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/public/invite/not-a-real-token",
+              "host": [
+                "{{base_url}}/api/v1/public/invite/not-a-real-token"
+              ]
+            },
+            "description": ""
+          }
+        },
+        {
+          "name": "Face capture before consent -> 400",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/public/invite/{{invite_token}}/face",
+              "host": [
+                "{{base_url}}/api/v1/public/invite/{{invite_token}}/face"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"image_b64\": \"abc\"\n}"
+            }
+          }
+        }
+      ]
+    }
+  ]
+}
