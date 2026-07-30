@@ -1,0 +1,26 @@
+# Caddy config - terminates HTTPS in front of api_gateway.
+#
+# Caddy obtains and renews a free Let's Encrypt certificate automatically. There
+# is no certbot to run and no renewal cron to forget: it requests the cert on
+# first start and renews it roughly 30 days before expiry, on its own.
+#
+# {$VAR} reads from the container's environment, which docker-compose.prod.yml
+# passes through from .env - so the domain is not hardcoded here either.
+
+{
+	# Let's Encrypt uses this to email you if a renewal ever starts failing.
+	email {$ACME_EMAIL}
+}
+
+{$DOMAIN} {
+	encode gzip
+
+	reverse_proxy api_gateway:8000 {
+		# Caddy sets X-Forwarded-For / -Proto / -Host by default, which is what
+		# uvicorn's --proxy-headers reads to recover the real visitor IP. The
+		# audit log (app/core/deps.py) and the public rate limiter
+		# (app/api/v1/public.py) both depend on that being correct.
+		health_uri /health
+		health_interval 30s
+	}
+}

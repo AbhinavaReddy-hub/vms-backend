@@ -99,11 +99,14 @@ services:
     env_file:
       - .env
     ports:
-      # Host port -> container 8000. CloudFront speaks HTTP to the host port,
-      # and the security group should allow it only from CloudFront's prefix
-      # list. The container-internal 8000 is fixed by the Dockerfile CMD; the
-      # host side is what you would ever want to change.
-      - "${API_HOST_PORT:-80}:8000"
+      # Bound to 127.0.0.1 ONLY - reachable from the instance itself (handy for
+      # `curl localhost:8000/health` over SSH) but not from the internet. Caddy
+      # is the sole public entrance, and it reaches this container over the
+      # docker network rather than through this mapping.
+      #
+      # This is also what keeps --forwarded-allow-ips=* safe in the Dockerfile:
+      # nothing but Caddy can reach uvicorn, so nothing can forge X-Forwarded-For.
+      - "127.0.0.1:${API_DEBUG_PORT:-8000}:8000"
     depends_on:
       db:
         # Waits for pg_isready, not just "container started" - otherwise the
@@ -124,6 +127,33 @@ services:
       retries: 3
       start_period: 40s
 
+  caddy:
+    image: ${CADDY_IMAGE:-caddy:2-alpine}
+    restart: unless-stopped
+    ports:
+      # The only two ports open to the internet on this whole instance.
+      # 80 is required even though everything redirects to 443: Let's Encrypt
+      # validates domain ownership over plain HTTP on port 80 (the HTTP-01
+      # challenge). Close it and certificate renewal silently fails ~60 days
+      # later, which is a miserable thing to debug.
+      - "80:80"
+      - "443:443"
+    environment:
+      DOMAIN: ${DOMAIN}
+      ACME_EMAIL: ${ACME_EMAIL}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      # caddy_data holds the issued certificates and the ACME account key.
+      # Losing it means re-requesting certs on every restart, which burns
+      # through Let's Encrypt's rate limit (5 identical certs per week) and
+      # then leaves you with no HTTPS until it resets. Do not skip this volume.
+      - caddy_data:/data
+      - caddy_config:/config
+    networks:
+      - public
+    depends_on:
+      - api_gateway
+
 networks:
   internal:
     internal: false
@@ -132,3 +162,5 @@ networks:
 volumes:
   pgdata:
   insightface_models:
+  caddy_data:
+  caddy_config:
